@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "lint": "eslint --max-warnings 0 'src/**/*.{ts,tsx,js,jsx}'",
+    "lint:fix": "eslint --fix --max-warnings 0 'src/**/*.{ts,tsx,js,jsx}'",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^17.4.3",
+    "@commitlint/config-conventional": "^17.4.3",
+    "husky": "^8.0.3"
+  }
+}
