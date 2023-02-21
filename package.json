@@ -1,6 +1,7 @@
 {
   "name": "centrifuge-influx",
   "version": "0.1.0",
+  "license": "LGPL-2.1",
   "nodemonConfig": {
     "verbose": true,
     "ignore": [
