@@ -5,5 +5,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "module": "CommonJS"
+  },
+  "ts-node": {
+    "files": true
   }
 }
