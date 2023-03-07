@@ -1,11 +1,28 @@
 import { Schema, model } from 'mongoose'
 
 export interface ILoan {
-  name: string
+  sources: Source[]
 }
 
-const loanSchema = new Schema<ILoan>({
-  name: { type: 'string', required: true },
-})
+export interface Source {
+  source: string
+  objectId: string
+  lastFetchedAt?: Date
+}
+
+const loanSchema = new Schema<ILoan>(
+  {
+    sources: [
+      {
+        source: { type: String, required: true },
+        objectId: { type: String, required: true },
+        lastFetchedAt: { type: Date, required: false },
+      },
+    ],
+  },
+  {
+    optimisticConcurrency: true,
+  }
+)
 
 export const Loan = model<ILoan>('Loan', loanSchema)
