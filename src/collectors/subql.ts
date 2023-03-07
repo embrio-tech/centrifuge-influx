@@ -86,7 +86,7 @@ class SubqlCollector {
     })
     switch (newLoansAmount) {
       case -1:
-        logger.info(`Already up to date...re-checking in ${SUBQL_POLLING_INTERVAL_SECONDS}s`)
+        logger.error(`Unable to fetch loans...re-checking in ${SUBQL_POLLING_INTERVAL_SECONDS}s`)
         intervalSeconds = parseInt(SUBQL_POLLING_INTERVAL_SECONDS, 10)
         break
 
