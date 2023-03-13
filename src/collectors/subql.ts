@@ -1,11 +1,13 @@
-import axios, { AxiosError, AxiosInstance } from 'axios'
 import EventEmitter from 'events'
+import axios from 'axios'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
-import { LoanService } from '../helpers/service'
+import { LoanService } from '../helpers'
+
+import type { AxiosError, AxiosInstance } from 'axios'
 
 class SubqlCollector {
-  readonly subql: AxiosInstance
-  readonly batchSize: number
+  private subql: AxiosInstance
+  private batchSize: number
   readonly emitter: EventEmitter
 
   constructor(endpoint: string) {
@@ -57,11 +59,25 @@ class SubqlCollector {
     return loanRequest.data.data?.loans
   }
 
+  public getPoolMetadata = async () => {
+    const poolRequest = await this.subql
+      .post<ISubQl<{ pool: { metadata: string } }>>('/', {
+        query: 'query getPool($poolId: String!) { pool( id: $poolId) { metadata } }',
+        variables: { poolId: global.poolId },
+      })
+      .catch((err: AxiosError) => {
+        throw new Error(err.message)
+      })
+    const poolMetadata = poolRequest.data.data?.pool.metadata ?? ''
+    logger.info(`Pool Metadata: ${poolMetadata}`)
+    return poolMetadata
+  }
+
   public countInitialisedLoans = () => {
     return LoanService.count({})
   }
 
-  public initLoans = async (offset: number) => {
+  private initLoans = async (offset: number) => {
     const loansBatch = await this.getLoansBatch(offset)
     const loans = loansBatch?.nodes ?? []
     if (loans.length > 0) logger.info(`Indexing loans ${offset + loans.length} of ${loansBatch?.totalCount}`)

@@ -1,7 +1,9 @@
-import type { FilterQuery, PipelineStage, Document, Model, QueryOptions } from 'mongoose'
+import type { FilterQuery, PipelineStage, Document, Model, QueryOptions, Types } from 'mongoose'
+import { DataFrame } from '../models/dataFrame'
 import { Loan } from '../models/loan'
+import { LoanTemplate } from '../models/loanTemplate'
 
-export class Service<T> {
+class Service<T> {
   model: Model<T>
 
   constructor(model: Model<T>) {
@@ -16,7 +18,7 @@ export class Service<T> {
     return this.model.find(filter, {}, options).cursor()
   }
 
-  public getOneById = async (_id: string, options: QueryOptions = {}) => {
+  public getOneById = async (_id: string | Types.ObjectId, options: QueryOptions = {}) => {
     return this.model.findById(_id, {}, options).exec()
   }
 
@@ -83,3 +85,5 @@ export class Service<T> {
 }
 
 export const LoanService = new Service(Loan)
+export const DataFrameService = new Service(DataFrame)
+export const LoanTemplateService = new Service(LoanTemplate)

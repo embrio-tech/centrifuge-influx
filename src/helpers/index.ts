@@ -1,3 +1,7 @@
 export * from './logger'
 export * from './global'
 export * from './db'
+export * from './centrifuge'
+export * from './keyring'
+export * from './service'
+export * from './error'
