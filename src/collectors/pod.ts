@@ -2,6 +2,7 @@ import Bottleneck from 'bottleneck'
 import { Types } from 'mongoose'
 import { firstValueFrom } from 'rxjs'
 import type { EventEmitter } from 'stream'
+import { POD_COLLECTOR_CONCURRENCY } from '../config'
 import { initWallets, centrifuge, LoanService, DataFrameService } from '../helpers'
 
 class PodCollector {
@@ -11,7 +12,7 @@ class PodCollector {
   constructor() {
     this.wallets = initWallets()
     this.limiter = new Bottleneck({
-      maxConcurrent: 3,
+      maxConcurrent: parseInt(POD_COLLECTOR_CONCURRENCY, 10),
       minTime: 500,
     })
   }
