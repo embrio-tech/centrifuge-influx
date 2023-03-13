@@ -1,3 +1,4 @@
+import Bottleneck from 'bottleneck'
 import { Types } from 'mongoose'
 import { firstValueFrom } from 'rxjs'
 import type { EventEmitter } from 'stream'
@@ -5,9 +6,14 @@ import { initWallets, centrifuge, LoanService, DataFrameService } from '../helpe
 
 class PodCollector {
   public wallets: ReturnType<typeof initWallets>
+  private limiter: Bottleneck
 
   constructor() {
     this.wallets = initWallets()
+    this.limiter = new Bottleneck({
+      maxConcurrent: 3,
+      minTime: 500,
+    })
   }
 
   public getPodDocumentId = (objectId: string) => {
@@ -30,16 +36,20 @@ class PodCollector {
   public indexLoanMetadata = async (loanId: Types.ObjectId | string) => {
     logger.info(`Indexing POD for loan: ${loanId}`)
     const loan = await LoanService.getOneById(loanId)
+    if (!loan) throw Error('Corresponding loan not found')
     const ipfsSources = loan?.sources.filter((source) => source.source === 'pod') ?? []
     const dbCreates = ipfsSources.map(async (source) => {
       const podData = await this.readPod(source.objectId)
       return DataFrameService.create({ createdAt: new Date(), source: 'pod', data: podData, loan: new Types.ObjectId(loanId) })
     })
-    return Promise.all(dbCreates)
+    ipfsSources.forEach((source) => (source.lastFetchedAt = new Date()))
+    return Promise.all([...dbCreates, loan.save()])
   }
 
   public collect = (loanEmitter: EventEmitter) => {
-    loanEmitter.on('newLoan', this.indexLoanMetadata)
+    loanEmitter.on('newLoan', (loanId) => {
+      this.limiter.schedule(this.indexLoanMetadata, loanId)
+    })
   }
 }
 export const podCollector = new PodCollector()
