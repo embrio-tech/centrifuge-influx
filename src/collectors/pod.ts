@@ -41,7 +41,7 @@ class PodCollector {
     const ipfsSources = loan?.sources.filter((source) => source.source === 'pod') ?? []
     const dbCreates = ipfsSources.map(async (source) => {
       const podData = await this.readPod(source.objectId)
-      return DataFrameService.create({ createdAt: new Date(), source: 'pod', data: podData, loan: new Types.ObjectId(loanId) })
+      return DataFrameService.create({ source: 'pod', data: podData, loan: new Types.ObjectId(loanId) })
     })
     ipfsSources.forEach((source) => (source.lastFetchedAt = new Date()))
     return Promise.all([...dbCreates, loan.save()])

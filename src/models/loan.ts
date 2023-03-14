@@ -22,6 +22,7 @@ const loanSchema = new Schema<ILoan>(
   },
   {
     optimisticConcurrency: true,
+    timestamps: true,
   }
 )
 

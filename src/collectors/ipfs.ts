@@ -37,7 +37,7 @@ class IpfsCollector {
     const ipfsSources = loan?.sources.filter((source) => source.source === 'ipfs') ?? []
     const dbCreates = ipfsSources.map(async (source) => {
       const metadata = await this.getLoanMetadata(source.objectId)
-      return DataFrameService.create({ createdAt: new Date(), source: 'ipfs', data: metadata, loan: new Types.ObjectId(loanId) })
+      return DataFrameService.create({ source: 'ipfs', data: metadata, loan: new Types.ObjectId(loanId) })
     })
     return Promise.all(dbCreates)
   }
