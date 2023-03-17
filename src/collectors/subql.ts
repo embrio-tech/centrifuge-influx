@@ -1,7 +1,7 @@
 import EventEmitter from 'events'
 import axios from 'axios'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
-import { LoanService } from '../helpers'
+import { LoanService, PodSourceService } from '../helpers'
 
 import type { AxiosError, AxiosInstance } from 'axios'
 
@@ -82,12 +82,8 @@ class SubqlCollector {
     const loans = loansBatch?.nodes ?? []
     if (loans.length > 0) logger.info(`Indexing loans ${offset + loans.length} of ${loansBatch?.totalCount}`)
     for (const loan of loans) {
-      const newLoan = await LoanService.create({
-        sources: [
-          { source: 'subql', objectId: loan.id },
-          { source: 'pod', objectId: `${loan.collateralNftClassId}:${loan.collateralNftItemId}` },
-        ],
-      })
+      const newLoan = await LoanService.create({})
+      await PodSourceService.create({ entity: newLoan._id, objectId: `${loan.collateralNftClassId}:${loan.collateralNftItemId}`, lastFetchedAt: new Date() })
       this.emitter.emit('newLoan', newLoan.id)
     }
     return loans.length

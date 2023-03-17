@@ -3,8 +3,8 @@ import axios from 'axios'
 import type { AxiosInstance } from 'axios'
 import { EventEmitter } from 'stream'
 import Bottleneck from 'bottleneck'
-import { Types } from 'mongoose'
-import { DataFrameService, LoanService } from '../helpers'
+import type { Types } from 'mongoose'
+import { FrameService, IpfsSourceService } from '../helpers'
 
 class IpfsCollector {
   private ipfs: AxiosInstance
@@ -33,13 +33,16 @@ class IpfsCollector {
 
   public indexLoanMetadata = async (loanId: Types.ObjectId | string) => {
     logger.info(`Indexing IPFS metadata for loan: ${loanId}`)
-    const loan = await LoanService.getOneById(loanId)
-    const ipfsSources = loan?.sources.filter((source) => source.source === 'ipfs') ?? []
-    const dbCreates = ipfsSources.map(async (source) => {
+    const ipfsSources = await IpfsSourceService.getMany({ entity: loanId }) //loan?.sources.filter((source) => source.source === 'ipfs') ?? []
+    const frameCreations = ipfsSources.map(async (source) => {
       const metadata = await this.getLoanMetadata(source.objectId)
-      return DataFrameService.create({ source: 'ipfs', data: metadata, loan: new Types.ObjectId(loanId) })
+      return FrameService.create({ source: source._id, data: metadata })
     })
-    return Promise.all(dbCreates)
+    const sourceupdates = ipfsSources.map((source) => {
+      source.lastFetchedAt = new Date()
+      return source.save()
+    })
+    return Promise.all([...frameCreations, ...sourceupdates])
   }
 
   public collect = (loanEmitter: EventEmitter) => {

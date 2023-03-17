@@ -1,9 +1,9 @@
 import Bottleneck from 'bottleneck'
-import { Types } from 'mongoose'
+import type { Types } from 'mongoose'
 import { firstValueFrom } from 'rxjs'
 import type { EventEmitter } from 'stream'
 import { POD_COLLECTOR_CONCURRENCY } from '../config'
-import { initWallets, centrifuge, LoanService, DataFrameService } from '../helpers'
+import { initWallets, centrifuge, FrameService, PodSourceService } from '../helpers'
 
 class PodCollector {
   public wallets: ReturnType<typeof initWallets>
@@ -36,15 +36,16 @@ class PodCollector {
 
   public indexLoanMetadata = async (loanId: Types.ObjectId | string) => {
     logger.info(`Indexing POD for loan: ${loanId}`)
-    const loan = await LoanService.getOneById(loanId)
-    if (!loan) throw Error('Corresponding loan not found')
-    const ipfsSources = loan?.sources.filter((source) => source.source === 'pod') ?? []
-    const dbCreates = ipfsSources.map(async (source) => {
+    const podSources = await PodSourceService.getMany({ entity: loanId }) //loan?.sources.filter((source) => source.source === 'pod') ?? []
+    const frameCreations = podSources.map(async (source) => {
       const podData = await this.readPod(source.objectId)
-      return DataFrameService.create({ source: 'pod', data: podData, loan: new Types.ObjectId(loanId) })
+      return FrameService.create({ source: source._id, data: podData })
     })
-    ipfsSources.forEach((source) => (source.lastFetchedAt = new Date()))
-    return Promise.all([...dbCreates, loan.save()])
+    const podSourcesUpdates = podSources.map((source) => {
+      source.lastFetchedAt = new Date()
+      return source.save()
+    })
+    return Promise.all([...frameCreations, podSourcesUpdates])
   }
 
   public collect = (loanEmitter: EventEmitter) => {
