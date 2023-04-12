@@ -4,6 +4,8 @@ import EventEmitter from 'events'
 import { firstValueFrom } from 'rxjs'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
 
+type LoanPodRef = [loanIds: number[], podRefs: string[]]
+
 class ChainCollector {
   private apiProm: Promise<ApiRx>
   readonly emitter: EventEmitter
@@ -120,10 +122,7 @@ class ChainCollector {
     setTimeout(() => this.collect(offset + newLoansAmount), intervalSeconds * 1000)
   }
 }
-
 export const chainCollector = new ChainCollector()
-
-type LoanPodRef = [loanIds: number[], podRefs: string[]]
 
 function sortedIndex(array: number[], value: number) {
   let low = 0,
