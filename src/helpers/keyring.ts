@@ -5,8 +5,8 @@ export async function initWallets() {
   await waitReady()
   const kr = new Keyring({ type: 'sr25519' })
   const wallets = {
-    proxy: kr.createFromUri('//Bob'),
-    operator: kr.createFromUri('//Alice'),
+    proxyKeyring: kr.createFromUri('//Bob'),
+    operatorAddress: '4g8zNcypnFHE5jqCifLGYoutCCM7uKWhF1NjWHka29hQE2rx',
   }
   return wallets
 }

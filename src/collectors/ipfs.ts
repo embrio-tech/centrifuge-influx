@@ -5,6 +5,7 @@ import { EventEmitter } from 'stream'
 import Bottleneck from 'bottleneck'
 import type { Types } from 'mongoose'
 import { FrameService, IpfsSourceService } from '../helpers'
+import { IPFS_NODE } from '../config'
 
 class IpfsCollector {
   private ipfs: AxiosInstance
@@ -60,4 +61,4 @@ interface IpfsLoanMetadata {
   properties: { _template: string; [labels: string]: unknown }
 }
 
-export const ipfsCollector = new IpfsCollector('https://altair.mypinata.cloud')
+export const ipfsCollector = new IpfsCollector(IPFS_NODE)

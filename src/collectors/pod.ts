@@ -2,7 +2,7 @@ import Bottleneck from 'bottleneck'
 import type { Types } from 'mongoose'
 import { firstValueFrom } from 'rxjs'
 import type { EventEmitter } from 'stream'
-import { POD_COLLECTOR_CONCURRENCY } from '../config'
+import { POD_COLLECTOR_CONCURRENCY, POD_NODE } from '../config'
 import { initWallets, centrifuge, FrameService, PodSourceService } from '../helpers'
 
 class PodCollector {
@@ -24,14 +24,14 @@ class PodCollector {
 
   public authenticate = async () => {
     const wallets = await this.wallets
-    const podData = await centrifuge.auth.generateJw3t(wallets.proxy, undefined, { proxyType: 'Any', onBehalfOf: wallets.operator.address })
+    const podData = await centrifuge.auth.generateJw3t(wallets.proxyKeyring, undefined, { proxyType: 'Any', onBehalfOf: wallets.operatorAddress })
     return podData
   }
 
   public readPod = async (objectId: string) => {
     const documentId = await this.getPodDocumentId(objectId)
     const token = await this.authenticate()
-    return await centrifuge.pod.getCommittedDocument(['https://pod.development.cntrfg.com/', token.token, documentId])
+    return await centrifuge.pod.getCommittedDocument([POD_NODE, token.token, documentId])
   }
 
   public indexLoanMetadata = async (loanId: Types.ObjectId | string) => {
