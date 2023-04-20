@@ -24,14 +24,15 @@ export interface ExtendedQueries extends QueryableStorage<'rxjs'> {
   } & QueryableModuleStorage<'rxjs'>
 }
 
-interface LoanInfo extends Struct {
+export interface LoanInfo extends Struct {
   collateralValue: u128
   interestRate: u128
   collateral: ITuple<[u64,u128]>
 }
 
-interface ActiveLoan extends Struct {
+export interface ActiveLoan extends Struct {
   loanId: u64
   info: LoanInfo
   borrower: AccountId32
+  normalizedDebt: u128
 }

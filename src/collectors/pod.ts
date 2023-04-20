@@ -1,5 +1,5 @@
 import Bottleneck from 'bottleneck'
-import type { Types } from 'mongoose'
+import { Types } from 'mongoose'
 import { firstValueFrom } from 'rxjs'
 import type { EventEmitter } from 'stream'
 import { POD_COLLECTOR_CONCURRENCY, POD_NODE } from '../config'
@@ -39,7 +39,10 @@ class PodCollector {
     const podSources = await PodSourceService.getMany({ entity: loanId }) //loan?.sources.filter((source) => source.source === 'pod') ?? []
     const frameCreations = podSources.map(async (source) => {
       const podData = await this.readPod(source.objectId)
-      return FrameService.create({ source: source._id, data: podData })
+      const frameEntries = Object.entries(podData.attributes)
+        .filter(entry => !entry[0].startsWith('_'))
+        .map((entry) => [entry[0], typeMapper[entry[1].type](entry[1])])
+      return FrameService.create({ source: source._id, data: Object.fromEntries(frameEntries) })
     })
     const podSourcesUpdates = podSources.map((source) => {
       source.lastFetchedAt = new Date()
@@ -55,3 +58,13 @@ class PodCollector {
   }
 }
 export const podCollector = new PodCollector()
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const typeMapper = {
+  string: (val: any) => String(val.value),
+  decimal: (val: any) => parseFloat(val.value),
+  monetary: (val: any) => new Types.Decimal128(val.monetary_value.value),
+  bytes: (val: any) => String(val.value),
+  integer: (val: any) => parseInt(val.value, 10),
+  timestamp: (val: any) => new Date(val.value),
+}

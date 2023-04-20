@@ -1,8 +1,10 @@
-import { centrifuge, ExtendedQueries, LoanService, PodSourceService, SubqlSourceService } from '../helpers'
-import type { ApiRx } from '@polkadot/api'
+import { centrifuge, ChainSourceService, ExtendedQueries, FrameService, LoanService, PodSourceService, SubqlSourceService } from '../helpers'
 import EventEmitter from 'events'
 import { firstValueFrom } from 'rxjs'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
+import { Types } from 'mongoose'
+import type { ApiRx } from '@polkadot/api'
+import type { ActiveLoan } from '@centrifuge/centrifuge-js'
 
 type LoanPodRef = [loanIds: number[], podRefs: string[]]
 
@@ -22,7 +24,16 @@ class ChainCollector {
     return poolMetadataId
   }
 
-  private getActiveLoans = async () => {
+  private getActiveLoans = async (): Promise<[number[], ActiveLoan[]]> => {
+    logger.info('Fetching active loans info')
+    const apiQuery = (await this.apiProm).query as ExtendedQueries
+    const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(global.poolId))
+    const loanIds = loanReq.map((loan) => loan[0].loanId.toNumber())
+    const loanInfo = loanReq.map((loan) => loan[0] as unknown as ActiveLoan)
+    return [loanIds, loanInfo]
+  }
+
+  private getActiveLoansPodRefs = async () => {
     const apiQuery = (await this.apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(global.poolId))
     const loanIds = loanReq.map((loan) => loan[0].loanId.toNumber())
@@ -34,7 +45,7 @@ class ChainCollector {
     return [loanIds, podRefs] as LoanPodRef
   }
 
-  private getClosedLoans = async () => {
+  private getClosedLoansPodRefs = async () => {
     const apiQuery = (await this.apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.closedLoan.entries(global.poolId))
     const loanIds = loanReq.map(([key]) => key.args[1].toNumber())
@@ -46,7 +57,7 @@ class ChainCollector {
     return [loanIds, podRefs] as LoanPodRef
   }
 
-  private getCreatedLoans = async () => {
+  private getCreatedLoansPodRefs = async () => {
     const apiQuery = (await this.apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.createdLoan.entries(global.poolId))
     const loanIds = loanReq.map(([key]) => key.args[1].toNumber())
@@ -58,8 +69,8 @@ class ChainCollector {
     return [loanIds, podRefs] as LoanPodRef
   }
 
-  public getLoans = async (offset = 0) => {
-    const loanData = await Promise.all([this.getCreatedLoans(), this.getActiveLoans(), this.getClosedLoans()])
+  public getLoansPodRefs = async (offset = 0) => {
+    const loanData = await Promise.all([this.getCreatedLoansPodRefs(), this.getActiveLoansPodRefs(), this.getClosedLoansPodRefs()])
     const resultIds: number[] = []
     const resultPodRefs: string[] = []
     for (const [loanIds, podRefs] of loanData) {
@@ -85,18 +96,19 @@ class ChainCollector {
   }
 
   private initLoans = async (offset: number) => {
-    const [loanIds, loanPodRefs] = await this.getLoans(offset)
+    const [loanIds, loanPodRefs] = await this.getLoansPodRefs(offset)
     if (loanIds.length > 0) logger.info(`Indexing loans from ${offset + 1} to ${offset + loanIds.length}`)
     for (const [i, loanId] of loanIds.entries()) {
       const newLoan = await LoanService.create({})
-      await PodSourceService.create({ entity: newLoan._id, objectId: loanPodRefs[i] ?? '', lastFetchedAt: new Date() })
-      await SubqlSourceService.create({ entity: newLoan._id, objectId: loanId.toString(), lastFetchedAt: new Date() })
+      await PodSourceService.create({ entity: newLoan._id, objectId: loanPodRefs[i] ?? '' })
+      await SubqlSourceService.create({ entity: newLoan._id, objectId: `${global.poolId}-${loanId}` })
+      await ChainSourceService.create({ entity: newLoan._id, objectId: loanId.toString() })
       this.emitter.emit('newLoan', newLoan.id)
     }
     return loanIds.length
   }
 
-  public collect = async (_offset?: number) => {
+  public collectLoans = async (_offset?: number) => {
     const offset = _offset ?? (await this.countInitialisedLoans())
     let intervalSeconds: number
     const newLoansAmount = await this.initLoans(offset).catch((err) => {
@@ -119,7 +131,27 @@ class ChainCollector {
         intervalSeconds = parseInt(SUBQL_POLLING_INTERVAL_SECONDS, 10)
         break
     }
-    setTimeout(() => this.collect(offset + newLoansAmount), intervalSeconds * 1000)
+    setTimeout(() => this.collectLoans(offset + newLoansAmount), intervalSeconds * 1000)
+  }
+
+  public collectLoansInfo = async (pollingIntervalSec = 60) => {
+    const [loanIds, loanInfos] = await this.getActiveLoans()
+    const inserts = []
+    for (const [i, loanId] of loanIds.entries()) {
+      const source = await ChainSourceService.getOneByField({ objectId: loanId.toString() })
+      if (source === null) break
+      const data: Record<string, unknown> = {}
+      data['normalizedDebt'] = new Types.Decimal128(loanInfos[i]?.normalizedDebt.toString() ?? '')
+      source.lastFetchedAt = new Date()
+      inserts.push(FrameService.upsert({ source: source._id }, { source: source._id, data }))
+      inserts.push(source.save())
+    }
+    await Promise.all(inserts).catch((err) => {
+      logger.error(err)
+      return -1
+    })
+    logger.info(`Active loan info updated. Rescheduling in ${pollingIntervalSec}sec`)
+    setTimeout(() => this.collectLoansInfo(pollingIntervalSec), pollingIntervalSec * 1000)
   }
 }
 export const chainCollector = new ChainCollector()

@@ -1,15 +1,21 @@
-import { podCollector, chainCollector } from './collectors'
+import { podCollector, chainCollector, ipfsCollector } from './collectors'
 import { db, setGlobal } from './helpers'
 
 setGlobal()
 async function main() {
   await db()
 
-  //const poolMetadataId = await chainCollector.getPoolMetadataId()
-  //const _loanTemplates = await ipfsCollector.getLoanTemplates(poolMetadataId)
-
   podCollector.collect(chainCollector.emitter)
-  chainCollector.collect()
+  ipfsCollector.collectLoanTemplates(ipfsCollector.emitter)
+
+  const poolMetadataId = await chainCollector.getPoolMetadataId()
+  const loanTemplates = await ipfsCollector.getLoanTemplates(poolMetadataId)
+  await Promise.all(
+    loanTemplates.map( (template) => ipfsCollector.initLoanTemplate(template.id) )
+  )
+
+  chainCollector.collectLoans()
+  chainCollector.collectLoansInfo()
 
 }
 
