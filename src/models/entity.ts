@@ -1,8 +1,8 @@
 import { Schema, model } from 'mongoose'
 
 export enum EntityTypes {
-  Loan = 'Loan',
-  LoanTemplate = 'LoanTemplate',
+  Loan = 'loan',
+  LoanTemplate = 'loanTemplate',
 }
 
 export interface IEntity {
