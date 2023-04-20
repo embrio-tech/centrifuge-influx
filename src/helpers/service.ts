@@ -35,6 +35,17 @@ class Service<T extends { type?: string }> {
     }
   }
 
+  public getOneByField = async (query: FilterQuery<T>, options: QueryOptions = {}) => {
+    const entity = await this.model.findOne({ ...query, type: this.entityType }, {}, options).exec()
+    switch (this.entityType) {
+      case undefined:
+        return entity
+
+      default:
+        return entity?.type === this.entityType ? entity : null
+    }
+  }
+
   public getManyPopulatable = (query: FilterQuery<T> = {}, options: QueryOptions = {}) => {
     return this.model.find({ ...query, type: this.entityType }, {}, options)
   }
@@ -97,6 +108,7 @@ class Service<T extends { type?: string }> {
 
 export const LoanService = new Service(Entity, EntityTypes.Loan)
 export const LoanTemplateService = new Service(Entity, EntityTypes.LoanTemplate)
+export const ChainSourceService = new Service(Source, SourceTypes.CHAIN)
 export const PodSourceService = new Service(Source, SourceTypes.POD)
 export const SubqlSourceService = new Service(Source, SourceTypes.SUBQL)
 export const IpfsSourceService = new Service(Source, SourceTypes.IPFS)
