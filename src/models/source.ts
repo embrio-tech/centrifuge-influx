@@ -11,7 +11,7 @@ export interface ISource {
   entity: Types.ObjectId
   type: SourceTypes
   objectId: string
-  lastFetchedAt: Date
+  lastFetchedAt?: Date
 }
 
 const sourceSchema = new Schema<ISource>(
@@ -26,5 +26,7 @@ const sourceSchema = new Schema<ISource>(
     timestamps: true,
   }
 )
+
+sourceSchema.index({ type: 1, objectId: 1 })
 
 export const Source = model<ISource>('Source', sourceSchema)
