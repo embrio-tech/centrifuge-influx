@@ -106,6 +106,7 @@ class Service<T extends { type?: string }> {
   }
 }
 
+export const PoolService = new Service(Entity, EntityTypes.Pool)
 export const LoanService = new Service(Entity, EntityTypes.Loan)
 export const LoanTemplateService = new Service(Entity, EntityTypes.LoanTemplate)
 export const ChainSourceService = new Service(Source, SourceTypes.CHAIN)
