@@ -5,15 +5,11 @@ setGlobal()
 async function main() {
   await db()
 
-  podCollector.collect(chainCollector.emitter)
+  ipfsCollector.collectPoolMetadata(chainCollector.emitter)
   ipfsCollector.collectLoanTemplates(ipfsCollector.emitter)
+  podCollector.collect(chainCollector.emitter)
 
-  const poolMetadataId = await chainCollector.getPoolMetadataId()
-  const loanTemplates = await ipfsCollector.getLoanTemplates(poolMetadataId)
-  await Promise.all(
-    loanTemplates.map( (template) => ipfsCollector.initLoanTemplate(template.id) )
-  )
-
+  chainCollector.initPool()
   chainCollector.collectLoans()
   chainCollector.collectLoansInfo()
 
