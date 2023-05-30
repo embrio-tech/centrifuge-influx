@@ -3,6 +3,7 @@ import { Schema, model } from 'mongoose'
 export enum EntityTypes {
   Loan = 'loan',
   LoanTemplate = 'loanTemplate',
+  Pool = 'pool'
 }
 
 export interface IEntity {

@@ -3,7 +3,7 @@ import axios from 'axios'
 import type { AxiosInstance } from 'axios'
 import { EventEmitter } from 'stream'
 import Bottleneck from 'bottleneck'
-import type { Types } from 'mongoose'
+import type { PipelineStage, Types } from 'mongoose'
 import { FrameService, IpfsSourceService, LoanTemplateService } from '../helpers'
 import { IPFS_NODE } from '../config'
 
@@ -18,11 +18,6 @@ class IpfsCollector {
     this.bottleneck = new Bottleneck()
   }
 
-  public getLoanTemplates = async (poolMetadata: string) => {
-    const ipfsRequest = await this.ipfs.get<{ loanTemplates?: IpfsLoanTemplate[] }>(poolMetadata)
-    return ipfsRequest.data['loanTemplates'] || []
-  }
-
   public initLoanTemplate = async (ipfsTemplateId: string) => {
     const loanTemplateSource = await IpfsSourceService.getOneByField({ objectId: ipfsTemplateId })
     if (loanTemplateSource === null) {
@@ -33,13 +28,27 @@ class IpfsCollector {
     }
   }
 
+  public getPoolMetadata = async (poolMetadataId: string) => {
+    const ipfsRequest = await this.ipfs.get<IpfsPoolMetadata>(poolMetadataId)
+    return ipfsRequest.data
+  }
+
   public getLoanMetadata = async (loanMetadata: string) => {
     const ipfsRequest = await this.ipfs.get<IpfsLoanMetadata>(loanMetadata)
     return ipfsRequest.data
   }
 
-  public indexLoanTemplates = async (poolMetadata: string) => {
-    poolMetadata
+  public indexPoolMetadata = async (poolId: Types.ObjectId | string) => {
+    logger.info(`Indexing IPFS metadata for pool: ${poolId}`)
+    const ipfsSource = await IpfsSourceService.getOneByField({ entity: poolId })
+    if (ipfsSource === null) throw new Error('IPFS Source not found')
+    const poolMetadata = await this.getPoolMetadata(ipfsSource.objectId)
+    ipfsSource.lastFetchedAt = new Date()
+    await Promise.all([
+      FrameService.create({ source: ipfsSource._id, data: poolMetadata }),
+      ipfsSource.save(),
+    ])
+    this.emitter.emit('newPoolMetadata', poolMetadata)
   }
 
   public indexLoanMetadata = async (loanId: Types.ObjectId | string) => {
@@ -70,13 +79,22 @@ class IpfsCollector {
     return Promise.all([...frameCreations, ...sourceupdates])
   }
 
+  public collectPoolMetadata = ( poolEmitter: EventEmitter ) => {
+    poolEmitter.on('newPool', this.indexPoolMetadata)
+  }
+
+  public collectLoanTemplates = (loanTemplateEmitter: EventEmitter) => {
+    this.emitter.on('newPoolMetadata', (poolMetadata: IpfsPoolMetadata) => {
+      poolMetadata.loanTemplates.map( loanTemplate => this.initLoanTemplate(loanTemplate.id) )
+    })
+
+    loanTemplateEmitter.on('newLoanTemplate', this.indexLoanTemplate)
+  }
+
   public collectLoans = (loanEmitter: EventEmitter) => {
     loanEmitter.on('newLoan', this.indexLoanMetadata)
   }
 
-  public collectLoanTemplates = (loanTemplateEmitter: EventEmitter) => {
-    loanTemplateEmitter.on('newLoanTemplate', this.indexLoanTemplate)
-  }
 }
 
 interface IpfsLoanTemplate {
@@ -87,6 +105,11 @@ interface IpfsLoanTemplate {
 interface IpfsLoanMetadata {
   name: string
   properties: { _template: string; [labels: string]: unknown }
+}
+
+interface IpfsPoolMetadata {
+  loanTemplates: IpfsLoanTemplate[]
+  aggregates: { [id: string]: PipelineStage[] }
 }
 
 export const ipfsCollector = new IpfsCollector(IPFS_NODE)

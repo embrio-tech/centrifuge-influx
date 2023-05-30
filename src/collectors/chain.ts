@@ -1,4 +1,14 @@
-import { centrifuge, ChainSourceService, ExtendedQueries, FrameService, LoanService, PodSourceService, SubqlSourceService } from '../helpers'
+import {
+  centrifuge,
+  ChainSourceService,
+  ExtendedQueries,
+  FrameService,
+  IpfsSourceService,
+  LoanService,
+  PodSourceService,
+  PoolService,
+  SubqlSourceService,
+} from '../helpers'
 import EventEmitter from 'events'
 import { firstValueFrom } from 'rxjs'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
@@ -106,6 +116,17 @@ class ChainCollector {
       this.emitter.emit('newLoan', newLoan.id)
     }
     return loanIds.length
+  }
+
+  public initPool = async () => {
+    const poolMetadataId = await this.getPoolMetadataId()
+    const poolMetadataSource = await IpfsSourceService.getOneByField({ objectId: poolMetadataId })
+    if (poolMetadataSource === null) {
+      logger.info(`Initialising PoolMetadata: ${poolMetadataId}`)
+      const newPool = await PoolService.create({})
+      await IpfsSourceService.create({ entity: newPool._id, objectId: poolMetadataId })
+      this.emitter.emit('newPool', newPool.id)
+    }
   }
 
   public collectLoans = async (_offset?: number) => {
