@@ -12,4 +12,6 @@ export const {
   POD_NODE = 'https://pod.development.cntrfg.com/',
   POD_COLLECTOR_CONCURRENCY = '3',
   POOL_ID,
+  PROXY_KEYRING_URI,
+  OPERATOR_ADDRESS,
 } = process.env
