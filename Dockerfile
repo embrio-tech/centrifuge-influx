@@ -2,6 +2,8 @@ FROM node:18.14-alpine as install
 
 WORKDIR /usr/src/app
 
+RUN apk add --update --no-cache python3 build-base gcc && ln -sf /usr/bin/python3 /usr/bin/python
+
 COPY package*.json ./
 COPY yarn*.lock ./
 RUN yarn install --production=false
