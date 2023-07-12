@@ -85,7 +85,8 @@ class IpfsCollector {
 
   public collectLoanTemplates = (loanTemplateEmitter: EventEmitter) => {
     this.emitter.on('newPoolMetadata', (poolMetadata: IpfsPoolMetadata) => {
-      poolMetadata.loanTemplates.map( loanTemplate => this.initLoanTemplate(loanTemplate.id) )
+      const { loanTemplates = [] } = poolMetadata
+      loanTemplates.map( loanTemplate => this.initLoanTemplate(loanTemplate.id) )
     })
 
     loanTemplateEmitter.on('newLoanTemplate', this.indexLoanTemplate)
@@ -108,8 +109,8 @@ interface IpfsLoanMetadata {
 }
 
 interface IpfsPoolMetadata {
-  loanTemplates: IpfsLoanTemplate[]
-  aggregates: { [id: string]: PipelineStage[] }
+  loanTemplates?: IpfsLoanTemplate[]
+  aggregates?: { [id: string]: PipelineStage[] }
 }
 
 export const ipfsCollector = new IpfsCollector(IPFS_NODE)

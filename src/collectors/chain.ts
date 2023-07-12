@@ -1,4 +1,5 @@
 import {
+  ActiveLoan,
   centrifuge,
   ChainSourceService,
   ExtendedQueries,
@@ -14,7 +15,7 @@ import { firstValueFrom } from 'rxjs'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
 import { Types } from 'mongoose'
 import type { ApiRx } from '@polkadot/api'
-import type { ActiveLoan } from '@centrifuge/centrifuge-js'
+import type { u128, Struct } from '@polkadot/types'
 
 type LoanPodRef = [loanIds: number[], podRefs: string[]]
 
@@ -34,22 +35,22 @@ class ChainCollector {
     return poolMetadataId
   }
 
-  private getActiveLoans = async (): Promise<[number[], ActiveLoan[]]> => {
+  private getActiveLoans = async (): Promise<[number[], Array<Partial<ActiveLoan>>]> => {
     logger.info('Fetching active loans info')
     const apiQuery = (await this.apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(global.poolId))
-    const loanIds = loanReq.map((loan) => loan[0].loanId.toNumber())
-    const loanInfo = loanReq.map((loan) => loan[0] as unknown as ActiveLoan)
+    const loanIds = loanReq.map((loan) => loan[0].toNumber())
+    const loanInfo = loanReq.map((loan) => loan[1])
     return [loanIds, loanInfo]
   }
 
   private getActiveLoansPodRefs = async () => {
     const apiQuery = (await this.apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(global.poolId))
-    const loanIds = loanReq.map((loan) => loan[0].loanId.toNumber())
+    const loanIds = loanReq.map((loan) => loan[0].toNumber())
     const podRefs = loanReq.map((loan) => {
-      const nftClassId = loan[0].info.collateral[0].toString()
-      const nftItemId = loan[0].info.collateral[1].toString()
+      const nftClassId = loan[1].collateral[0].toString()
+      const nftItemId = loan[1].collateral[1].toString()
       return `${nftClassId}:${nftItemId}`
     })
     return [loanIds, podRefs] as LoanPodRef
@@ -162,7 +163,8 @@ class ChainCollector {
       const source = await ChainSourceService.getOneByField({ objectId: loanId.toString() })
       if (source === null) break
       const data: Record<string, unknown> = {}
-      data['normalizedDebt'] = new Types.Decimal128(loanInfos[i]?.normalizedDebt.toString() ?? '')
+      const pricingData = loanInfos[i]?.pricing?.value as { normalizedDebt?: u128 } & Struct
+      data['normalizedDebt'] = new Types.Decimal128((pricingData['normalizedDebt'] ?? 0).toString())
       source.lastFetchedAt = new Date()
       inserts.push(FrameService.upsert({ source: source._id }, { source: source._id, data }))
       inserts.push(source.save())
