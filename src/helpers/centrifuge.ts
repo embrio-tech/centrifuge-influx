@@ -12,8 +12,16 @@ export const centrifuge = new Centrifuge({
 })
 
 export interface ExtendedQueries extends QueryableStorage<'rxjs'> {
+  ['ormlAssetRegistry']: {
+    metadata: (currency: Enum) => Observable<Option<AssetMetadata & Struct>>
+  } & QueryableModuleStorage<'rxjs'>
+
   ['poolRegistry']: {
     poolMetadata: (poolId: string) => Observable<Option<{ metadata: Bytes } & Struct>>
+  } & QueryableModuleStorage<'rxjs'>
+
+  ['poolSystem']: {
+    pool: (poolId: string) => Observable<Option<PoolDetails & Struct>>
   } & QueryableModuleStorage<'rxjs'>
 
   ['loans']: {
@@ -54,4 +62,23 @@ export interface ClosedLoan {
   info: LoanInfo
   totalBorrowed: u128
   totalRepaid: u128
+}
+
+export interface PoolDetails {
+  currency: Enum
+  tranches: unknown
+  parameters: unknown
+  metadata: Option<Bytes>
+  status: unknown
+  epoch: unknown
+  reserve: unknown
+}
+
+export interface AssetMetadata {
+  decimals: u32
+  name: Bytes
+  symbol: Bytes
+  existentialDeposit: u128
+  location: unknown
+  additional: unknown
 }

@@ -14,21 +14,51 @@ import EventEmitter from 'events'
 import { firstValueFrom } from 'rxjs'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
 import { Types } from 'mongoose'
-import type { ApiRx } from '@polkadot/api'
-import type { u128, Struct } from '@polkadot/types'
+import type { u128, Struct, Enum } from '@polkadot/types'
 
 type LoanPodRef = [loanIds: number[], podRefs: string[]]
 
-class ChainCollector {
-  private apiProm: Promise<ApiRx>
+const apiProm = centrifuge.getApiPromise()
+export class ChainCollector {
   readonly emitter: EventEmitter
-  constructor() {
-    this.apiProm = centrifuge.getApiPromise()
+  readonly poolId: string
+  readonly decimals: number
+  constructor(poolId: string, decimals: number) {
     this.emitter = new EventEmitter()
+    this.poolId = poolId
+    this.decimals = decimals
+  }
+
+  static init = async (poolId: string) => {
+    const apiQuery = (await apiProm).query as ExtendedQueries
+    const poolReq = await firstValueFrom(apiQuery.poolSystem.pool(poolId))
+    const poolDetails = poolReq.unwrap()
+    const currency = poolDetails?.currency
+    const metaReq = await firstValueFrom(apiQuery.ormlAssetRegistry.metadata(currency))
+    const currencyMeta = metaReq.unwrap()
+    const decimals = currencyMeta?.decimals.toNumber()
+    return new this(poolId, decimals)
+  }
+
+  public getPoolInfo = async () => {
+    const apiQuery = (await apiProm).query as ExtendedQueries
+    const poolReq = await firstValueFrom(apiQuery.poolSystem.pool(global.poolId))
+    const poolDetails = poolReq.unwrap()
+    logger.info(`Fetched pool details: ${poolDetails.toString()}`)
+    return poolDetails
+  }
+
+  public getCurrencyDecimals = async (currency: Enum) => {
+    const apiQuery = (await apiProm).query as ExtendedQueries
+    const metaReq = await firstValueFrom(apiQuery.ormlAssetRegistry.metadata(currency))
+    const currencyMeta = metaReq.unwrap()
+    const decimals = currencyMeta?.decimals.toNumber()
+    logger.info(`Fetched currency decimals: ${decimals}`)
+    return decimals
   }
 
   public getPoolMetadataId = async () => {
-    const apiQuery = (await this.apiProm).query as ExtendedQueries
+    const apiQuery = (await apiProm).query as ExtendedQueries
     const metadataReq = await firstValueFrom(apiQuery.poolRegistry.poolMetadata(global.poolId))
     const poolMetadataId = metadataReq.unwrap().metadata.toUtf8()
     logger.info(`Fetched pool metadata Id: ${poolMetadataId}`)
@@ -37,7 +67,7 @@ class ChainCollector {
 
   private getActiveLoans = async (): Promise<[number[], Array<Partial<ActiveLoan>>]> => {
     logger.info('Fetching active loans info')
-    const apiQuery = (await this.apiProm).query as ExtendedQueries
+    const apiQuery = (await apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(global.poolId))
     const loanIds = loanReq.map((loan) => loan[0].toNumber())
     const loanInfo = loanReq.map((loan) => loan[1])
@@ -45,7 +75,7 @@ class ChainCollector {
   }
 
   private getActiveLoansPodRefs = async () => {
-    const apiQuery = (await this.apiProm).query as ExtendedQueries
+    const apiQuery = (await apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(global.poolId))
     const loanIds = loanReq.map((loan) => loan[0].toNumber())
     const podRefs = loanReq.map((loan) => {
@@ -57,7 +87,7 @@ class ChainCollector {
   }
 
   private getClosedLoansPodRefs = async () => {
-    const apiQuery = (await this.apiProm).query as ExtendedQueries
+    const apiQuery = (await apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.closedLoan.entries(global.poolId))
     const loanIds = loanReq.map(([key]) => key.args[1].toNumber())
     const podRefs = loanReq.map(([, value]) => {
@@ -69,7 +99,7 @@ class ChainCollector {
   }
 
   private getCreatedLoansPodRefs = async () => {
-    const apiQuery = (await this.apiProm).query as ExtendedQueries
+    const apiQuery = (await apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.createdLoan.entries(global.poolId))
     const loanIds = loanReq.map(([key]) => key.args[1].toNumber())
     const podRefs = loanReq.map(([, value]) => {
@@ -97,7 +127,7 @@ class ChainCollector {
   }
 
   public getLastLoanId = async () => {
-    const apiQuery = (await this.apiProm).query as ExtendedQueries
+    const apiQuery = (await apiProm).query as ExtendedQueries
     const loanId = await firstValueFrom(apiQuery.loans.lastLoanId(global.poolId))
     return loanId
   }
@@ -164,7 +194,7 @@ class ChainCollector {
       if (source === null) break
       const data: Record<string, unknown> = {}
       const pricingData = loanInfos[i]?.pricing?.value as { normalizedDebt?: u128 } & Struct
-      data['normalizedDebt'] = new Types.Decimal128((pricingData['normalizedDebt'] ?? 0).toString())
+      data['normalizedDebt'] = new Types.Decimal128(fixDecimal((pricingData['normalizedDebt'] ?? 0).toString(), this.decimals))
       source.lastFetchedAt = new Date()
       inserts.push(FrameService.upsert({ source: source._id }, { source: source._id, data }))
       inserts.push(source.save())
@@ -177,7 +207,6 @@ class ChainCollector {
     setTimeout(() => this.collectLoansInfo(pollingIntervalSec), pollingIntervalSec * 1000)
   }
 }
-export const chainCollector = new ChainCollector()
 
 function sortedIndex(array: number[], value: number) {
   let low = 0,
@@ -189,4 +218,12 @@ function sortedIndex(array: number[], value: number) {
     else high = mid
   }
   return low
+}
+
+function fixDecimal(bigint: string, decimals: number) {
+  const padBigInt = bigint.padStart(decimals + 1, '0')
+  const len = padBigInt.length
+  const result = padBigInt.split('')
+  result.splice(len - decimals, 0, '.')
+  return result.join('')
 }

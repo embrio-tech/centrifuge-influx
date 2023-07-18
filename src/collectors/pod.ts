@@ -24,7 +24,7 @@ class PodCollector {
 
   public authenticate = async () => {
     const wallets = await this.wallets
-    const podData = await centrifuge.auth.generateJw3t(wallets.proxyKeyring, undefined, { proxyType: 'Any', onBehalfOf: wallets.operatorAddress })
+    const podData = await centrifuge.auth.generateJw3t(wallets.proxyKeyring, undefined, { proxyType: 'PodAuth', onBehalfOf: wallets.operatorAddress })
     return podData
   }
 
