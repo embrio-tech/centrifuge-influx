@@ -9,7 +9,7 @@ export const {
   SUBQL_POLLING_INTERVAL_SECONDS = '60',
   SUBQL_ENDPOINT = 'https://api.subquery.network/sq/embrio-tech/centrifuge-subql',
   IPFS_NODE = 'https://altair.mypinata.cloud',
-  POD_NODE = 'https://pod.development.cntrfg.com/',
+  POD_NODE = 'https://pod-development.k-f.dev',
   POD_COLLECTOR_CONCURRENCY = '3',
   POOL_ID,
   PROXY_KEYRING_URI,
