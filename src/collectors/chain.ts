@@ -194,7 +194,7 @@ export class ChainCollector {
       if (source === null) break
       const data: Record<string, unknown> = {}
       const pricingData = loanInfos[i]?.pricing?.value as { normalizedDebt?: u128 } & Struct
-      data['normalizedDebt'] = new Types.Decimal128(decimalize((pricingData['normalizedDebt'] ?? 0).toString(), this.decimals))
+      data['normalizedDebt'] = new Types.Decimal128(fixDecimal((pricingData['normalizedDebt'] ?? 0).toString(), this.decimals))
       source.lastFetchedAt = new Date()
       inserts.push(FrameService.upsert({ source: source._id }, { source: source._id, data }))
       inserts.push(source.save())
@@ -220,7 +220,7 @@ function sortedIndex(array: number[], value: number) {
   return low
 }
 
-function decimalize(bigint: string, decimals: number) {
+function fixDecimal(bigint: string, decimals: number) {
   const padBigInt = bigint.padStart(decimals + 1, '0')
   const len = padBigInt.length
   const result = padBigInt.split('')
