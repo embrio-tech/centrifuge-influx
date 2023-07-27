@@ -2,14 +2,21 @@ import Bottleneck from 'bottleneck'
 import { Types } from 'mongoose'
 import { firstValueFrom } from 'rxjs'
 import type { EventEmitter } from 'stream'
-import { POD_COLLECTOR_CONCURRENCY, POD_NODE } from '../config'
-import { initWallets, centrifuge, FrameService, PodSourceService } from '../helpers'
+import { POD_COLLECTOR_CONCURRENCY } from '../config'
+import { initWallets, centrifuge, ScopedServices } from '../helpers'
+import { DataTypes } from '../models/source'
 
-class PodCollector {
+export class PodCollector {
+  readonly poolId: string
+  readonly podNode: string
+  readonly service: ReturnType<typeof ScopedServices>
   public wallets: ReturnType<typeof initWallets>
   private limiter: Bottleneck
 
-  constructor() {
+  constructor(poolId: string, podNode: string) {
+    this.poolId = poolId
+    this.podNode = podNode
+    this.service = ScopedServices(poolId)
     this.wallets = initWallets()
     this.limiter = new Bottleneck({
       maxConcurrent: parseInt(POD_COLLECTOR_CONCURRENCY, 10),
@@ -31,33 +38,37 @@ class PodCollector {
   public readPod = async (objectId: string) => {
     const documentId = await this.getPodDocumentId(objectId)
     const token = await this.authenticate()
-    return await centrifuge.pod.getCommittedDocument([POD_NODE, token.token, documentId])
+    return await centrifuge.pod.getCommittedDocument([this.podNode, token.token, documentId])
   }
 
-  public indexLoanMetadata = async (loanId: Types.ObjectId | string) => {
+  public indexPod = async (loanId: Types.ObjectId | string) => {
     logger.info(`Indexing POD for loan: ${loanId}`)
-    const podSources = await PodSourceService.getMany({ entity: loanId }) //loan?.sources.filter((source) => source.source === 'pod') ?? []
-    const frameCreations = podSources.map(async (source) => {
-      const podData = await this.readPod(source.objectId)
-      const frameEntries = Object.entries(podData.attributes)
-        .filter(entry => !entry[0].startsWith('_'))
-        .map((entry) => [entry[0], typeMapper[entry[1].type](entry[1])])
-      return FrameService.create({ source: source._id, data: Object.fromEntries(frameEntries) })
-    })
-    const podSourcesUpdates = podSources.map((source) => {
+    const podSources = await this.service.podSource.getMany({ entity: loanId })
+    const dataUpdates = []
+    for (const source of podSources) {
+      const podData = await this.readPod(source.objectId).catch((err) => {
+        logger.error(`unable to read POD ${source.objectId} for loan ${loanId}: ${err}`)
+        return null
+      })
+      if (podData === null) break
+      const frameData = Object.fromEntries(
+        Object.entries(podData.attributes)
+          .filter((entry) => !entry[0].startsWith('_'))
+          .map((entry) => [entry[0], typeMapper[entry[1].type](entry[1])])
+      )
       source.lastFetchedAt = new Date()
-      return source.save()
-    })
-    return Promise.all([...frameCreations, podSourcesUpdates])
+      dataUpdates.push(source.save())
+      dataUpdates.push(this.service.frame.create({ source: source._id, data: frameData, dataType: DataTypes.PodData }))
+    }
+    return Promise.all(dataUpdates)
   }
 
-  public collect = (loanEmitter: EventEmitter) => {
-    loanEmitter.on('newLoan', (loanId) => {
-      this.limiter.schedule(this.indexLoanMetadata, loanId)
+  public handleChainEvents = (chainEmitter: EventEmitter) => {
+    chainEmitter.on('newLoan', (loanId) => {
+      this.limiter.schedule(this.indexPod, loanId)
     })
   }
 }
-export const podCollector = new PodCollector()
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const typeMapper = {

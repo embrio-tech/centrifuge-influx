@@ -1,15 +1,16 @@
 import EventEmitter from 'events'
 import axios from 'axios'
-import { SUBQL_ENDPOINT } from '../config'
 
 import type { AxiosError, AxiosInstance } from 'axios'
 
-class SubqlCollector {
+export class SubqlCollector {
   private subql: AxiosInstance
   private batchSize: number
   readonly emitter: EventEmitter
+  readonly poolId: string
 
-  constructor(endpoint: string) {
+  constructor(poolId: string, endpoint: string) {
+    this.poolId = poolId
     this.subql = axios.create({ baseURL: endpoint })
     this.batchSize = 100
     this.emitter = new EventEmitter()
@@ -47,7 +48,7 @@ class SubqlCollector {
           }
         }
       }`,
-        variables: { poolId: global.poolId, amount: this.batchSize, offset },
+        variables: { poolId: this.poolId, amount: this.batchSize, offset },
       })
       .catch((err: AxiosError) => {
         throw new Error(err.message)
@@ -59,7 +60,7 @@ class SubqlCollector {
     const poolRequest = await this.subql
       .post<ISubQl<{ pool: { metadata: string } }>>('/', {
         query: 'query getPool($poolId: String!) { pool( id: $poolId) { metadata } }',
-        variables: { poolId: global.poolId },
+        variables: { poolId: this.poolId },
       })
       .catch((err: AxiosError) => {
         throw new Error(err.message)
@@ -75,5 +76,3 @@ interface ISubQl<Q> {
   extensions?: unknown
   errors?: unknown
 }
-
-export const subqlCollector = new SubqlCollector(SUBQL_ENDPOINT)
