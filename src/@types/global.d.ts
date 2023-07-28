@@ -2,7 +2,7 @@ import type pino from 'pino'
 
 /* eslint-disable no-var */
 declare global {
-  var poolId: string
+  var pools: string[]
   var logger: pino.Logger
 }
 

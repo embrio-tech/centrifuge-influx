@@ -1,20 +1,10 @@
-import {
-  ActiveLoan,
-  centrifuge,
-  ChainSourceService,
-  ExtendedQueries,
-  FrameService,
-  IpfsSourceService,
-  LoanService,
-  PodSourceService,
-  PoolService,
-  SubqlSourceService,
-} from '../helpers'
+import { ActiveLoan, centrifuge, ExtendedQueries, ScopedServices } from '../helpers'
 import EventEmitter from 'events'
 import { firstValueFrom } from 'rxjs'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
 import { Types } from 'mongoose'
 import type { u128, Struct, Enum } from '@polkadot/types'
+import { DataTypes } from '../models/source'
 
 type LoanPodRef = [loanIds: number[], podRefs: string[]]
 
@@ -23,10 +13,12 @@ export class ChainCollector {
   readonly emitter: EventEmitter
   readonly poolId: string
   readonly decimals: number
+  readonly service: ReturnType<typeof ScopedServices>
   constructor(poolId: string, decimals: number) {
     this.emitter = new EventEmitter()
     this.poolId = poolId
     this.decimals = decimals
+    this.service = ScopedServices(poolId)
   }
 
   static init = async (poolId: string) => {
@@ -42,7 +34,7 @@ export class ChainCollector {
 
   public getPoolInfo = async () => {
     const apiQuery = (await apiProm).query as ExtendedQueries
-    const poolReq = await firstValueFrom(apiQuery.poolSystem.pool(global.poolId))
+    const poolReq = await firstValueFrom(apiQuery.poolSystem.pool(this.poolId))
     const poolDetails = poolReq.unwrap()
     logger.info(`Fetched pool details: ${poolDetails.toString()}`)
     return poolDetails
@@ -59,7 +51,7 @@ export class ChainCollector {
 
   public getPoolMetadataId = async () => {
     const apiQuery = (await apiProm).query as ExtendedQueries
-    const metadataReq = await firstValueFrom(apiQuery.poolRegistry.poolMetadata(global.poolId))
+    const metadataReq = await firstValueFrom(apiQuery.poolRegistry.poolMetadata(this.poolId))
     const poolMetadataId = metadataReq.unwrap().metadata.toUtf8()
     logger.info(`Fetched pool metadata Id: ${poolMetadataId}`)
     return poolMetadataId
@@ -68,7 +60,7 @@ export class ChainCollector {
   private getActiveLoans = async (): Promise<[number[], Array<Partial<ActiveLoan>>]> => {
     logger.info('Fetching active loans info')
     const apiQuery = (await apiProm).query as ExtendedQueries
-    const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(global.poolId))
+    const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(this.poolId))
     const loanIds = loanReq.map((loan) => loan[0].toNumber())
     const loanInfo = loanReq.map((loan) => loan[1])
     return [loanIds, loanInfo]
@@ -76,7 +68,7 @@ export class ChainCollector {
 
   private getActiveLoansPodRefs = async () => {
     const apiQuery = (await apiProm).query as ExtendedQueries
-    const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(global.poolId))
+    const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(this.poolId))
     const loanIds = loanReq.map((loan) => loan[0].toNumber())
     const podRefs = loanReq.map((loan) => {
       const nftClassId = loan[1].collateral[0].toString()
@@ -88,7 +80,7 @@ export class ChainCollector {
 
   private getClosedLoansPodRefs = async () => {
     const apiQuery = (await apiProm).query as ExtendedQueries
-    const loanReq = await firstValueFrom(apiQuery.loans.closedLoan.entries(global.poolId))
+    const loanReq = await firstValueFrom(apiQuery.loans.closedLoan.entries(this.poolId))
     const loanIds = loanReq.map(([key]) => key.args[1].toNumber())
     const podRefs = loanReq.map(([, value]) => {
       const nftClassId = value.unwrap().info.collateral[0].toString()
@@ -100,7 +92,7 @@ export class ChainCollector {
 
   private getCreatedLoansPodRefs = async () => {
     const apiQuery = (await apiProm).query as ExtendedQueries
-    const loanReq = await firstValueFrom(apiQuery.loans.createdLoan.entries(global.poolId))
+    const loanReq = await firstValueFrom(apiQuery.loans.createdLoan.entries(this.poolId))
     const loanIds = loanReq.map(([key]) => key.args[1].toNumber())
     const podRefs = loanReq.map(([, value]) => {
       const nftClassId = value.unwrap().info.collateral[0].toString()
@@ -128,22 +120,22 @@ export class ChainCollector {
 
   public getLastLoanId = async () => {
     const apiQuery = (await apiProm).query as ExtendedQueries
-    const loanId = await firstValueFrom(apiQuery.loans.lastLoanId(global.poolId))
+    const loanId = await firstValueFrom(apiQuery.loans.lastLoanId(this.poolId))
     return loanId
   }
 
   public countInitialisedLoans = () => {
-    return LoanService.count({})
+    return this.service.loan.count({})
   }
 
   private initLoans = async (offset: number) => {
     const [loanIds, loanPodRefs] = await this.getLoansPodRefs(offset)
     if (loanIds.length > 0) logger.info(`Indexing loans from ${offset + 1} to ${offset + loanIds.length}`)
     for (const [i, loanId] of loanIds.entries()) {
-      const newLoan = await LoanService.create({})
-      await PodSourceService.create({ entity: newLoan._id, objectId: loanPodRefs[i] ?? '' })
-      await SubqlSourceService.create({ entity: newLoan._id, objectId: `${global.poolId}-${loanId}` })
-      await ChainSourceService.create({ entity: newLoan._id, objectId: loanId.toString() })
+      const newLoan = await this.service.loan.create({})
+      await this.service.podSource.create({ entity: newLoan._id, objectId: loanPodRefs[i] ?? '', dataType: DataTypes.PodData })
+      await this.service.subqlSource.create({ entity: newLoan._id, objectId: `${this.poolId}-${loanId}`, dataType: DataTypes.LoanInfo })
+      await this.service.chainSource.create({ entity: newLoan._id, objectId: loanId.toString(), dataType: DataTypes.LoanInfo })
       this.emitter.emit('newLoan', newLoan.id)
     }
     return loanIds.length
@@ -151,13 +143,17 @@ export class ChainCollector {
 
   public initPool = async () => {
     const poolMetadataId = await this.getPoolMetadataId()
-    const poolMetadataSource = await IpfsSourceService.getOneByField({ objectId: poolMetadataId })
+    let poolMetadataSource = await this.service.ipfsSource.getOneByField({ objectId: poolMetadataId })
     if (poolMetadataSource === null) {
       logger.info(`Initialising PoolMetadata: ${poolMetadataId}`)
-      const newPool = await PoolService.create({})
-      await IpfsSourceService.create({ entity: newPool._id, objectId: poolMetadataId })
-      this.emitter.emit('newPool', newPool.id)
+      const newPool = await this.service.pool.create({})
+      poolMetadataSource = await this.service.ipfsSource.create({
+        entity: newPool._id,
+        objectId: poolMetadataId,
+        dataType: DataTypes.PoolMetadata,
+      })
     }
+    this.emitter.emit('poolReady', poolMetadataSource.entity)
   }
 
   public collectLoans = async (_offset?: number) => {
@@ -190,13 +186,13 @@ export class ChainCollector {
     const [loanIds, loanInfos] = await this.getActiveLoans()
     const inserts = []
     for (const [i, loanId] of loanIds.entries()) {
-      const source = await ChainSourceService.getOneByField({ objectId: loanId.toString() })
+      const source = await this.service.chainSource.getOneByField({ objectId: loanId.toString() })
       if (source === null) break
       const data: Record<string, unknown> = {}
       const pricingData = loanInfos[i]?.pricing?.value as { normalizedDebt?: u128 } & Struct
       data['normalizedDebt'] = new Types.Decimal128(fixDecimal((pricingData['normalizedDebt'] ?? 0).toString(), this.decimals))
       source.lastFetchedAt = new Date()
-      inserts.push(FrameService.upsert({ source: source._id }, { source: source._id, data }))
+      inserts.push(this.service.frame.upsert({ source: source._id }, { source: source._id, data, dataType: DataTypes.LoanInfo }))
       inserts.push(source.save())
     }
     await Promise.all(inserts).catch((err) => {

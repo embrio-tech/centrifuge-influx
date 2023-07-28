@@ -1,27 +1,37 @@
-import { podCollector, ChainCollector, ipfsCollector } from './collectors'
+import { PodCollector, ChainCollector, IpfsCollector } from './collectors'
+import { IPFS_NODE } from './config'
 import { db, setGlobal } from './helpers'
 
-setGlobal()
-async function main() {
-  await db()
+const initialisedDb = db()
 
-  const chainCollector = await ChainCollector.init(global.poolId)
+async function main(poolId: string) {
+  await initialisedDb
+  logger.info(`Starting indexer for pool: ${poolId}`)
 
-  ipfsCollector.collectPoolMetadata(chainCollector.emitter)
-  ipfsCollector.collectLoanTemplates(ipfsCollector.emitter)
-  podCollector.collect(chainCollector.emitter)
-
+  const chainCollector = await ChainCollector.init(poolId)
+  const ipfsCollector = new IpfsCollector(poolId, IPFS_NODE)
+  ipfsCollector.handleChainEvents(chainCollector.emitter)
   chainCollector.initPool()
+
+  const { pod } = await ipfsCollector.poolMetadata
+  if (pod?.node) {
+    const podCollector = new PodCollector(poolId, pod.node)
+    podCollector.handleChainEvents(chainCollector.emitter)
+  }
+
   chainCollector.collectLoans()
   chainCollector.collectLoansInfo()
 }
 
-main()
-  // .then(() => {
-  //   logger.info('Successfully completed!')
-  //   process.exit(0)
-  // })
-  .catch((error) => {
-    logger.error(error)
-    process.exit(1)
-  })
+setGlobal()
+global.pools.forEach((poolId) => {
+  main(poolId)
+    // .then(() => {
+    //   logger.info('Successfully completed!')
+    //   process.exit(0)
+    // })
+    .catch((error) => {
+      logger.error(error)
+      process.exit(1)
+    })
+})
