@@ -100,7 +100,7 @@ export const ScopedServices = (poolId: string) => ({
   chainSource: new Service(Source, { type: SourceTypes.CHAIN, poolId }),
   podSource: new Service(Source, { type: SourceTypes.POD, poolId }),
   subqlSource: new Service(Source, { type: SourceTypes.SUBQL, poolId }),
-  ipfsSource: new Service(Source, { type: SourceTypes.SUBQL, poolId }),
+  ipfsSource: new Service(Source, { type: SourceTypes.IPFS, poolId }),
 
   frame: new Service(Frame, { poolId }),
 })
