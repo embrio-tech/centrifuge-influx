@@ -4,10 +4,8 @@ import type { Root } from '../helpers'
 
 export interface IFrame extends Root {
   source: Types.ObjectId
-  poolId: string
   data: unknown
   dataType: DataTypes
-  type?: string
 }
 
 const frameSchema = new Schema<IFrame>(

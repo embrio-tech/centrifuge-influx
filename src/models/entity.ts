@@ -8,7 +8,6 @@ export enum EntityTypes {
 
 export interface IEntity extends Root {
   type: EntityTypes
-  poolId: string
 }
 
 const entitySchema = new Schema<IEntity>(

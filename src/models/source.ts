@@ -17,11 +17,10 @@ export enum DataTypes {
 
 export interface ISource extends Root {
   entity: Types.ObjectId
-  poolId: string
   type: SourceTypes
   dataType: DataTypes
   objectId: string
-  lastFetchedAt?: Date
+  lastFetchedAt?: Date | null
 }
 
 const sourceSchema = new Schema<ISource>(

@@ -14,14 +14,14 @@ export class ChainCollector {
   readonly poolId: string
   readonly decimals: number
   readonly service: ReturnType<typeof ScopedServices>
-  constructor(poolId: string, decimals: number) {
+  constructor(poolId: string, service: ReturnType<typeof ScopedServices>, decimals: number) {
     this.emitter = new EventEmitter()
     this.poolId = poolId
     this.decimals = decimals
-    this.service = ScopedServices(poolId)
+    this.service = service
   }
 
-  static init = async (poolId: string) => {
+  static init = async (poolId: string, service: ReturnType<typeof ScopedServices>) => {
     const apiQuery = (await apiProm).query as ExtendedQueries
     const poolReq = await firstValueFrom(apiQuery.poolSystem.pool(poolId))
     const poolDetails = poolReq.unwrap()
@@ -29,7 +29,7 @@ export class ChainCollector {
     const metaReq = await firstValueFrom(apiQuery.ormlAssetRegistry.metadata(currency))
     const currencyMeta = metaReq.unwrap()
     const decimals = currencyMeta?.decimals.toNumber()
-    return new this(poolId, decimals)
+    return new this(poolId, service, decimals)
   }
 
   public getPoolInfo = async () => {

@@ -13,10 +13,10 @@ export class PodCollector {
   public wallets: ReturnType<typeof initWallets>
   private limiter: Bottleneck
 
-  constructor(poolId: string, podNode: string) {
+  constructor(poolId: string, service: ReturnType<typeof ScopedServices>, podNode: string) {
     this.poolId = poolId
     this.podNode = podNode
-    this.service = ScopedServices(poolId)
+    this.service = service
     this.wallets = initWallets()
     this.limiter = new Bottleneck({
       maxConcurrent: parseInt(POD_COLLECTOR_CONCURRENCY, 10),

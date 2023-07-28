@@ -5,7 +5,7 @@ import { Source, SourceTypes } from '../models/source'
 
 export type Root = { poolId: string }
 
-class Service<T extends Root, U extends Partial<Root>> {
+class Service<T extends Root, U extends Record<string,unknown>> {
   model: Model<T>
   scope: U
 

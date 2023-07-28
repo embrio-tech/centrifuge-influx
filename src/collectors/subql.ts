@@ -2,18 +2,21 @@ import EventEmitter from 'events'
 import axios from 'axios'
 
 import type { AxiosError, AxiosInstance } from 'axios'
+import type { ScopedServices } from '../helpers'
 
 export class SubqlCollector {
   private subql: AxiosInstance
   private batchSize: number
   readonly emitter: EventEmitter
   readonly poolId: string
+  readonly service: ReturnType<typeof ScopedServices>
 
-  constructor(poolId: string, endpoint: string) {
+  constructor(poolId: string, service: ReturnType<typeof ScopedServices> ,endpoint: string) {
     this.poolId = poolId
     this.subql = axios.create({ baseURL: endpoint })
     this.batchSize = 100
     this.emitter = new EventEmitter()
+    this.service = service
   }
 
   public getLoansBatch = async (offset = 0) => {

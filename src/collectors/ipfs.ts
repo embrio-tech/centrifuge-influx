@@ -4,7 +4,7 @@ import type { AxiosInstance } from 'axios'
 import { EventEmitter } from 'stream'
 import Bottleneck from 'bottleneck'
 import type { PipelineStage, Types } from 'mongoose'
-import { ScopedServices } from '../helpers'
+import type { ScopedServices } from '../helpers'
 import { DataTypes } from '../models/source'
 
 export class IpfsCollector {
@@ -15,12 +15,12 @@ export class IpfsCollector {
   readonly poolMetadata: Promise<IpfsPoolMetadata>
   readonly service: ReturnType<typeof ScopedServices>
 
-  constructor(poolId: string, endpoint: string) {
+  constructor(poolId: string, service: ReturnType<typeof ScopedServices>, endpoint: string) {
     this.poolId = poolId
     this.ipfs = axios.create({ baseURL: `${endpoint}/ipfs` })
     this.emitter = new EventEmitter()
     this.limiter = new Bottleneck()
-    this.service = ScopedServices(poolId)
+    this.service = service
     this.poolMetadata = new Promise<IpfsPoolMetadata>((resolve) => {
       this.emitter.once('metadataReady', resolve)
     })
