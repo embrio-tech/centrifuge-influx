@@ -189,8 +189,8 @@ export class ChainCollector {
       const source = await this.service.chainSource.getOneByField({ objectId: loanId.toString() })
       if (source === null) break
       const data: Record<string, unknown> = {}
-      const pricingData = loanInfos[i]?.pricing?.value as { normalizedDebt?: u128 } & Struct
-      data['normalizedDebt'] = new Types.Decimal128(fixDecimal((pricingData['normalizedDebt'] ?? 0).toString(), this.decimals))
+      const pricingData = loanInfos[i]?.pricing?.value as { normalizedAcc?: u128 } & Struct
+      data['normalizedDebt'] = new Types.Decimal128(fixDecimal((pricingData['normalizedAcc'] ?? 0).toString(), this.decimals))
       source.lastFetchedAt = new Date()
       inserts.push(this.service.frame.upsert({ source: source._id }, { source: source._id, data, dataType: DataTypes.LoanInfo }))
       inserts.push(source.save())
