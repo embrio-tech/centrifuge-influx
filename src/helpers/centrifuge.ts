@@ -1,5 +1,5 @@
 import Centrifuge from '@centrifuge/centrifuge-js'
-import type { QueryableModuleStorage, QueryableStorage } from '@polkadot/api-base/types'
+import type { QueryableModuleStorage, QueryableModuleCalls, QueryableStorage, QueryableCalls } from '@polkadot/api-base/types'
 import type { Option, Bytes, Struct, Vec, u128, u64, u32, StorageKey, Enum } from '@polkadot/types'
 import type { AccountId32 } from '@polkadot/types/interfaces'
 import type { ITuple } from '@polkadot/types/types'
@@ -32,6 +32,12 @@ export interface ExtendedQueries extends QueryableStorage<'rxjs'> {
   } & QueryableModuleStorage<'rxjs'>
 }
 
+export interface ExtendedCalls extends QueryableCalls<'rxjs'> {
+  ['loansApi']: {
+    portfolio: (poolId: string) => Observable<Vec<ITuple<[u64, ActiveLoanInfo]>>>
+  } & QueryableModuleCalls<'rxjs'>
+}
+
 export interface LoanInfo extends Struct {
   collateral: ITuple<[u64, u128]>
   schedule: unknown
@@ -40,16 +46,23 @@ export interface LoanInfo extends Struct {
 }
 
 export interface ActiveLoan extends Struct {
-  schedule: unknown
+  schedule: RepaymentSchedule
   collateral: ITuple<[u64, u128]>
   restrictions: unknown
   borrower: AccountId32
   writeOffPercentage: u128
   originationDate: u64
-  pricing: Enum
+  pricing: ActivePricing
   totalBorrowed: u128
-  totalRepaid: u128
-  totalRepaidUnchecked: u128
+  totalRepaid: RepaidAmount
+  repaymentsOnScheduleUntil: u64
+}
+
+export interface ActiveLoanInfo extends Struct {
+  activeLoan: ActiveLoan
+  presentValue: u128
+  outstandingPrincipal: u128
+  outstandingInterest: u128
 }
 
 export interface CreatedLoan extends Struct {
@@ -57,14 +70,14 @@ export interface CreatedLoan extends Struct {
   borrower: AccountId32
 }
 
-export interface ClosedLoan {
+export interface ClosedLoan extends Struct {
   closedAt: u32
   info: LoanInfo
   totalBorrowed: u128
   totalRepaid: u128
 }
 
-export interface PoolDetails {
+export interface PoolDetails extends Struct {
   currency: Enum
   tranches: unknown
   parameters: unknown
@@ -74,11 +87,59 @@ export interface PoolDetails {
   reserve: unknown
 }
 
-export interface AssetMetadata {
+export interface AssetMetadata extends Struct {
   decimals: u32
   name: Bytes
   symbol: Bytes
   existentialDeposit: u128
   location: unknown
   additional: unknown
+}
+
+interface RepaymentSchedule extends Struct {
+  maturity: Maturity
+  interestPayments: unknown
+  payDownSchedule: unknown
+}
+
+export interface Maturity extends Enum {
+  isFixed: boolean
+  asFixed: {
+    date: u64
+    extension: u64
+  }
+}
+
+export interface ActivePricing extends Enum {
+  isInternal: boolean
+  asInternal: {
+    info: unknown
+    interest: ActiveInterestRate
+  }
+  isExternal: boolean
+  asExternal: {
+    info: unknown
+    interest: ActiveInterestRate
+    outstandingQuantity: u128
+  }
+}
+
+interface ActiveInterestRate extends Struct {
+  interestRate: InterestRate
+  normalizedAcc: u128
+  penalty: u128
+}
+
+interface InterestRate extends Enum {
+  isFixed: boolean
+  asFixed: {
+    ratePerYear: u128
+    compounding: unknown
+  }
+}
+
+interface RepaidAmount extends Struct {
+  principal: u128
+  interest: u128
+  unscheduled: u128
 }

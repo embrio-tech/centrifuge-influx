@@ -1,5 +1,5 @@
 import dotenv from 'dotenv'
-dotenv.config()
+dotenv.config({ path: '../.env' })
 
 // export env variables or defaults
 export const {
