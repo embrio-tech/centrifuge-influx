@@ -1,12 +1,12 @@
-import { ActiveLoan, centrifuge, ExtendedQueries, ScopedServices } from '../helpers'
+import { ActiveLoan, ActiveLoanInfo, centrifuge, ExtendedCalls, ExtendedQueries, ScopedServices } from '../helpers'
 import EventEmitter from 'events'
 import { firstValueFrom } from 'rxjs'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
 import { Types } from 'mongoose'
-import type { u128, Struct, Enum } from '@polkadot/types'
+import type { Enum } from '@polkadot/types'
 import { DataTypes } from '../models/source'
 
-type LoanPodRef = [loanIds: number[], podRefs: string[]]
+const WADDIGITS = 18
 
 const apiProm = centrifuge.getApiPromise()
 export class ChainCollector {
@@ -57,7 +57,7 @@ export class ChainCollector {
     return poolMetadataId
   }
 
-  private getActiveLoans = async (): Promise<[number[], Array<Partial<ActiveLoan>>]> => {
+  public getActiveLoans = async (): Promise<[number[], Array<Partial<ActiveLoan>>]> => {
     logger.info('Fetching active loans info')
     const apiQuery = (await apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(this.poolId))
@@ -124,6 +124,14 @@ export class ChainCollector {
     return loanId
   }
 
+  public getPortfolio = async (): Promise<[number[], Array<ActiveLoanInfo>]> => {
+    const apiCall = (await apiProm).call as ExtendedCalls
+    const portfolioReq = await firstValueFrom(apiCall.loansApi.portfolio(this.poolId))
+    const loanIds = portfolioReq.map((line) => line[0].toNumber())
+    const loanInfos = portfolioReq.map((line) => line[1])
+    return [loanIds, loanInfos]
+  }
+
   public countInitialisedLoans = () => {
     return this.service.loan.count({})
   }
@@ -183,14 +191,32 @@ export class ChainCollector {
   }
 
   public collectLoansInfo = async (pollingIntervalSec = 60) => {
-    const [loanIds, loanInfos] = await this.getActiveLoans()
+    const [loanIds, loanInfos] = await this.getPortfolio()
     const inserts = []
     for (const [i, loanId] of loanIds.entries()) {
       const source = await this.service.chainSource.getOneByField({ objectId: loanId.toString() })
-      if (source === null) break
+      const loanInfo = loanInfos[i]
+      if (source === null || !loanInfo) break
       const data: Record<string, unknown> = {}
-      const pricingData = loanInfos[i]?.pricing?.value as { normalizedAcc?: u128 } & Struct
-      data['normalizedDebt'] = new Types.Decimal128(fixDecimal((pricingData['normalizedAcc'] ?? 0).toString(), this.decimals))
+      data['outstandingPrincipal'] = new Types.Decimal128(fixDecimal(loanInfo.outstandingPrincipal.toString(), this.decimals))
+      data['outstandingInterest'] = new Types.Decimal128(fixDecimal(loanInfo.outstandingInterest.toString(), this.decimals))
+      const outstandingDebt = loanInfo.outstandingPrincipal.toBigInt()  + loanInfo.outstandingInterest.toBigInt()
+      data['outstandingDebt'] = new Types.Decimal128(fixDecimal(outstandingDebt.toString(), this.decimals))
+      data['presentValue'] = new Types.Decimal128(fixDecimal(loanInfo.presentValue.toString(), this.decimals))
+      const maturityDate = new Date(loanInfo.activeLoan.schedule.maturity.asFixed.date.toNumber() * 1000)
+      data['actualMaturityDate'] = maturityDate
+      data['timeToMaturity'] = Math.round((maturityDate.valueOf() - Date.now().valueOf())/1000)
+      data['actualOriginationDate'] = new Date(loanInfo.activeLoan.originationDate.toNumber() * 1000)
+      data['writeOffPercentage'] = new Types.Decimal128(fixDecimal(loanInfo.activeLoan.writeOffPercentage.toString(), WADDIGITS))
+      data['totalBorrowed'] = new Types.Decimal128(fixDecimal(loanInfo.activeLoan.totalBorrowed.toString(), this.decimals))
+      const totalRepaid = loanInfo.activeLoan.totalRepaid
+      data['totalRepaid'] = new Types.Decimal128(
+        fixDecimal((totalRepaid.principal.toBigInt() + totalRepaid.interest.toBigInt() + totalRepaid.unscheduled.toBigInt()).toString(), this.decimals)
+      )
+      data['totalRepaidPrincipal'] = new Types.Decimal128(fixDecimal(totalRepaid.principal.toString(), this.decimals))
+      data['totalRepaidInterest'] = new Types.Decimal128(fixDecimal(totalRepaid.interest.toString(), this.decimals))
+      data['totalRepaidUnscheduled'] = new Types.Decimal128(fixDecimal(totalRepaid.unscheduled.toString(), this.decimals))
+
       source.lastFetchedAt = new Date()
       inserts.push(this.service.frame.upsert({ source: source._id }, { source: source._id, data, dataType: DataTypes.LoanInfo }))
       inserts.push(source.save())
@@ -223,3 +249,5 @@ function fixDecimal(bigint: string, decimals: number) {
   result.splice(len - decimals, 0, '.')
   return result.join('')
 }
+
+type LoanPodRef = [loanIds: number[], podRefs: string[]]

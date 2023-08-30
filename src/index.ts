@@ -20,7 +20,6 @@ async function main(poolId: string) {
     const podCollector = new PodCollector(poolId, services, pod.node)
     podCollector.handleChainEvents(chainCollector.emitter)
   }
-
   chainCollector.collectLoans()
   chainCollector.collectLoansInfo()
 }
