@@ -8,7 +8,7 @@ export const {
   DB_URI = 'mongodb://mongodb:mongodb@localhost:27017/blender?authSource=admin',
   SUBQL_POLLING_INTERVAL_SECONDS = '60',
   SUBQL_ENDPOINT = 'https://api.subquery.network/sq/embrio-tech/centrifuge-subql',
-  IPFS_NODE = 'https://altair.mypinata.cloud',
+  IPFS_NODE = 'https://centrifuge.mypinata.cloud',
   POD_COLLECTOR_CONCURRENCY = '2',
   POOL_ID,
   PROXY_KEYRING_URI,

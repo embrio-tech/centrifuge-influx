@@ -8,7 +8,7 @@ import type { Observable } from 'rxjs'
 export const centrifuge = new Centrifuge({
   polkadotWsUrl: 'wss://fullnode-relay.development.cntrfg.com',
   centrifugeWsUrl: 'wss://fullnode.development.cntrfg.com',
-  metadataHost: 'https://altair.mypinata.cloud',
+  metadataHost: 'https://centrifuge.mypinata.cloud',
 })
 
 export interface ExtendedQueries extends QueryableStorage<'rxjs'> {
