@@ -24,6 +24,7 @@ export class ChainCollector {
   static init = async (poolId: string, service: ReturnType<typeof ScopedServices>) => {
     const apiQuery = (await apiProm).query as ExtendedQueries
     const poolReq = await firstValueFrom(apiQuery.poolSystem.pool(poolId))
+    if(poolReq.isNone) throw new Error(`Pool with id ${poolId} not found!`)
     const poolDetails = poolReq.unwrap()
     const currency = poolDetails?.currency
     const metaReq = await firstValueFrom(apiQuery.ormlAssetRegistry.metadata(currency))

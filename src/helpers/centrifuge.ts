@@ -4,11 +4,12 @@ import type { Option, Bytes, Struct, Vec, u128, u64, u32, StorageKey, Enum } fro
 import type { AccountId32 } from '@polkadot/types/interfaces'
 import type { ITuple } from '@polkadot/types/types'
 import type { Observable } from 'rxjs'
+import { CFG_NODE_ENDPOINT, CFG_RELAY_NODE_ENDPOINT, IPFS_NODE } from '../config'
 
 export const centrifuge = new Centrifuge({
-  polkadotWsUrl: 'wss://fullnode-relay.development.cntrfg.com',
-  centrifugeWsUrl: 'wss://fullnode.development.cntrfg.com',
-  metadataHost: 'https://centrifuge.mypinata.cloud',
+  polkadotWsUrl: CFG_RELAY_NODE_ENDPOINT,
+  centrifugeWsUrl: CFG_NODE_ENDPOINT,
+  metadataHost: IPFS_NODE,
 })
 
 export interface ExtendedQueries extends QueryableStorage<'rxjs'> {
