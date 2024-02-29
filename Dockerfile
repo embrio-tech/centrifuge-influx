@@ -30,7 +30,7 @@ FROM --platform=linux/amd64 node:18.14-alpine
     # Copy necessary files
     COPY package*.json ./
     COPY yarn*.lock ./
-    COPY --from=build /usr/src/app/dist ./dist
+    COPY --from=dev-build /usr/src/app/dist ./dist
     COPY --from=prod-install /usr/src/app/node_modules ./node_modules
 
 EXPOSE 5000
