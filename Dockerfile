@@ -1,4 +1,5 @@
-FROM node:18.14-alpine as install
+# --platform=linux/amd64  is necessary when building on M1/M3 Macintosh locally
+FROM --platform=linux/amd64  node:18.14-alpine as install
 
 WORKDIR /usr/src/app
 
@@ -23,7 +24,7 @@ COPY . .
 # Build the application
 RUN yarn build
 
-FROM node:18.14-alpine as prod-install
+FROM --platform=linux/amd64 node:18.14-alpine as prod-install
 
 WORKDIR /usr/src/app
 
