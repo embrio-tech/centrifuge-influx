@@ -22,12 +22,16 @@ FROM --platform=linux/amd64 node:18.14-alpine as prod-install
 FROM --platform=linux/amd64 node:18.14-alpine
 
     WORKDIR /usr/src/app
+    # Create a non-root user and switch to it
+    # Note: You might need to adjust permissions more restrictively depending on your app's specific needs
+    RUN adduser -D indexer && chown -R indexer:indexer /usr/src/app
+    USER indexer
 
+    # Copy necessary files
     COPY package*.json ./
     COPY yarn*.lock ./
-    COPY --from=dev-build /usr/src/app/dist ./dist
+    COPY --from=build /usr/src/app/dist ./dist
     COPY --from=prod-install /usr/src/app/node_modules ./node_modules
 
 EXPOSE 5000
-
 CMD ["yarn", "start"]
