@@ -34,4 +34,6 @@ COPY --from=prod-install /usr/src/app/node_modules ./node_modules
 
 EXPOSE 5000
 
+USER node
+
 CMD ["yarn", "start"]
