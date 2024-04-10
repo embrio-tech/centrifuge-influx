@@ -24,21 +24,21 @@ export class PodCollector {
     })
   }
 
-  public getPodDocumentId = (objectId: string) => {
-    const [nftClassId = '', nftItemId = ''] = objectId.split(':')
+  public getPodDocumentId = (nftClassId: string, nftItemId: string) => {
     return firstValueFrom<string>(centrifuge.nfts.getNftDocumentId([nftClassId, nftItemId]))
   }
 
   public authenticate = async () => {
     const wallets = await this.wallets
-    const podData = await centrifuge.auth.generateJw3t(wallets.proxyKeyring, undefined, { proxyType: 'PodAuth', onBehalfOf: wallets.operatorAddress })
+    const podData = await centrifuge.auth.generateJw3t(wallets.proxyKeyring, undefined)
     return podData
   }
 
   public readPod = async (objectId: string) => {
-    const documentId = await this.getPodDocumentId(objectId)
+    const [nftClassId = '', nftItemId = '', loanId = ''] = objectId.split(':')
+    const documentId = await this.getPodDocumentId(nftClassId, nftItemId)
     const token = await this.authenticate()
-    return await centrifuge.pod.getCommittedDocument([this.podNode, token.token, documentId])
+    return await centrifuge.pod.getInvestorAccess([this.podNode, token.token, documentId, this.poolId, loanId])
   }
 
   public indexPod = async (loanId: Types.ObjectId | string) => {

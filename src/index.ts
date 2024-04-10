@@ -1,11 +1,14 @@
 import { PodCollector, ChainCollector, IpfsCollector } from './collectors'
 import { IPFS_NODE } from './config'
 import { ScopedServices, db, setGlobal } from './helpers'
+import { setupHealthchecks } from './helpers/health'
 
 const initialisedDb = db()
+const initialiseHealthcheck = setupHealthchecks()
 
 async function main(poolId: string) {
   await initialisedDb
+  await initialiseHealthcheck
   logger.info(`Starting indexer for pool: ${poolId}`)
 
   const services = ScopedServices(poolId)

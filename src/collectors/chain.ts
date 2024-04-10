@@ -1,5 +1,5 @@
 import { ActiveLoan, ActiveLoanInfo, centrifuge, ExtendedCalls, ExtendedQueries, ScopedServices } from '../helpers'
-import EventEmitter from 'events'
+import { EventEmitter } from 'events'
 import { firstValueFrom } from 'rxjs'
 import { SUBQL_POLLING_INTERVAL_SECONDS } from '../config'
 import { Types } from 'mongoose'
@@ -24,7 +24,7 @@ export class ChainCollector {
   static init = async (poolId: string, service: ReturnType<typeof ScopedServices>) => {
     const apiQuery = (await apiProm).query as ExtendedQueries
     const poolReq = await firstValueFrom(apiQuery.poolSystem.pool(poolId))
-    if(poolReq.isNone) throw new Error(`Pool with id ${poolId} not found!`)
+    if (poolReq.isNone) throw new Error(`Pool with id ${poolId} not found!`)
     const poolDetails = poolReq.unwrap()
     const currency = poolDetails?.currency
     const metaReq = await firstValueFrom(apiQuery.ormlAssetRegistry.metadata(currency))
@@ -68,6 +68,7 @@ export class ChainCollector {
   }
 
   private getActiveLoansPodRefs = async () => {
+    logger.info(`Fetching active loans for pool ${this.poolId}...`)
     const apiQuery = (await apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.activeLoans(this.poolId))
     const loanIds = loanReq.map((loan) => loan[0].toNumber())
@@ -80,6 +81,7 @@ export class ChainCollector {
   }
 
   private getClosedLoansPodRefs = async () => {
+    logger.info(`Fetching closed loans for pool ${this.poolId}...`)
     const apiQuery = (await apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.closedLoan.entries(this.poolId))
     const loanIds = loanReq.map(([key]) => key.args[1].toNumber())
@@ -92,6 +94,7 @@ export class ChainCollector {
   }
 
   private getCreatedLoansPodRefs = async () => {
+    logger.info(`Fetching created loans for pool ${this.poolId}...`)
     const apiQuery = (await apiProm).query as ExtendedQueries
     const loanReq = await firstValueFrom(apiQuery.loans.createdLoan.entries(this.poolId))
     const loanIds = loanReq.map(([key]) => key.args[1].toNumber())
@@ -142,7 +145,7 @@ export class ChainCollector {
     if (loanIds.length > 0) logger.info(`Indexing loans from ${offset + 1} to ${offset + loanIds.length}`)
     for (const [i, loanId] of loanIds.entries()) {
       const newLoan = await this.service.loan.create({})
-      await this.service.podSource.create({ entity: newLoan._id, objectId: loanPodRefs[i] ?? '', dataType: DataTypes.PodData })
+      await this.service.podSource.create({ entity: newLoan._id, objectId: `${loanPodRefs[i]}:${loanId}` ?? '', dataType: DataTypes.PodData })
       await this.service.subqlSource.create({ entity: newLoan._id, objectId: `${this.poolId}-${loanId}`, dataType: DataTypes.LoanInfo })
       await this.service.chainSource.create({ entity: newLoan._id, objectId: loanId.toString(), dataType: DataTypes.LoanInfo })
       this.emitter.emit('newLoan', newLoan.id)
@@ -201,12 +204,12 @@ export class ChainCollector {
       const data: Record<string, unknown> = {}
       data['outstandingPrincipal'] = new Types.Decimal128(fixDecimal(loanInfo.outstandingPrincipal.toString(), this.decimals))
       data['outstandingInterest'] = new Types.Decimal128(fixDecimal(loanInfo.outstandingInterest.toString(), this.decimals))
-      const outstandingDebt = loanInfo.outstandingPrincipal.toBigInt()  + loanInfo.outstandingInterest.toBigInt()
+      const outstandingDebt = loanInfo.outstandingPrincipal.toBigInt() + loanInfo.outstandingInterest.toBigInt()
       data['outstandingDebt'] = new Types.Decimal128(fixDecimal(outstandingDebt.toString(), this.decimals))
       data['presentValue'] = new Types.Decimal128(fixDecimal(loanInfo.presentValue.toString(), this.decimals))
       const maturityDate = new Date(loanInfo.activeLoan.schedule.maturity.asFixed.date.toNumber() * 1000)
       data['actualMaturityDate'] = maturityDate
-      data['timeToMaturity'] = Math.round((maturityDate.valueOf() - Date.now().valueOf())/1000)
+      data['timeToMaturity'] = Math.round((maturityDate.valueOf() - Date.now().valueOf()) / 1000)
       data['actualOriginationDate'] = new Date(loanInfo.activeLoan.originationDate.toNumber() * 1000)
       data['writeOffPercentage'] = new Types.Decimal128(fixDecimal(loanInfo.activeLoan.writeOffPercentage.toString(), WADDIGITS))
       data['totalBorrowed'] = new Types.Decimal128(fixDecimal(loanInfo.activeLoan.totalBorrowed.toString(), this.decimals))

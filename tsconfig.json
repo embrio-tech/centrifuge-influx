@@ -4,7 +4,9 @@
   "exclude": ["node_modules", "**/*.spec.ts"],
   "compilerOptions": {
     "outDir": "./dist",
-    "module": "CommonJS"
+    "module": "CommonJS",
+    "target": "ESNext",
+    "ignoreDeprecations": "5.0"
   },
   "ts-node": {
     "files": true
