@@ -4,7 +4,7 @@ import type { Connection } from 'mongoose'
 import type { RouteGenericInterface } from 'fastify'
 import { HEALTHCHECK_PORT } from '../config'
 
-const server = Fastify({ logger: true })
+const server = Fastify({ logger: false })
 
 export async function setupHealthchecks() {
   server.get<HealthRoute>('/health', async (_req, rep) => {
