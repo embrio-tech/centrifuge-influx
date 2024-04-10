@@ -6,6 +6,7 @@ import Bottleneck from 'bottleneck'
 import type { PipelineStage, Types } from 'mongoose'
 import type { ScopedServices } from '../helpers'
 import { DataTypes } from '../models/source'
+import { EntityTypes } from '../models/entity'
 
 export class IpfsCollector {
   private ipfs: AxiosInstance
@@ -30,9 +31,10 @@ export class IpfsCollector {
     let loanTemplateSource = await this.service.ipfsSource.getOneByField({ objectId: ipfsTemplateId })
     if (loanTemplateSource === null) {
       logger.info(`Initialising LoanTemplate: ${ipfsTemplateId}`)
-      const newLoanTemplate = await this.service.loan.create({})
+      const poolEntity = await this.service.pool.getOneByField({ type: EntityTypes.Pool, poolId: this.poolId })
+      if (!poolEntity) throw new Error(`No pool entity found for pool ${this.poolId}`)
       loanTemplateSource = await this.service.ipfsSource.create({
-        entity: newLoanTemplate._id,
+        entity: poolEntity._id,
         objectId: ipfsTemplateId,
         dataType: DataTypes.LoanTemplate,
       })
